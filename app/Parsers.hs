@@ -5,17 +5,20 @@ import Helper
 import Types
 
 
-makeInput :: String -> Input
-makeInput s = Input (zip s [0..])
-
-inputHead :: Input -> InpChar
-inputHead (Input []) = ('#', -1)
-inputHead (Input (x:xs)) = x
-
 run :: String -> IO ()
-run s = case runParser numberParser (makeInput s) of
+run s = case runParser (stringParser "asdf") (makeInput s) of
             Left (Error charNum err) -> putStrLn $ "Error on " ++ show charNum ++ " with " ++ err
-            Right (parsed, rest) -> putStrLn $ "Parsed " ++ show (parsed, rest)
+            Right ((), rest) -> putStrLn $ "Parsed " ++ show rest
+
+stringParser :: String -> Parser ()
+stringParser s = Parser $ parseStr s
+    where
+        parseStr :: String -> Input -> Either Error ((), Input)
+        parseStr [] y = Right ((), y)
+        parseStr (x:xs) (Input []) = Left $ Error ('#', -1) "Unexpected end of input"
+        parseStr (x:xs) (Input ((c,charNum):ys))
+          | x == c = parseStr xs (Input ys)
+          | otherwise = Left $ Error (c, charNum) "Char mismatch"
 
 numberParser :: Parser Int
 numberParser = Parser
