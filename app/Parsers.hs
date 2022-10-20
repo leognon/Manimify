@@ -6,9 +6,27 @@ import Types
 
 
 run :: String -> IO ()
-run s = case runParser (stringParser "asdf") (makeInput s) of
+run s = case runParser (parseSequential (stringParser "asdf") numberParser) (makeInput s) of
             Left (Error charNum err) -> putStrLn $ "Error on " ++ show charNum ++ " with " ++ err
-            Right ((), rest) -> putStrLn $ "Parsed " ++ show rest
+            Right (x, rest) -> putStrLn $ "Parsed " ++ show x ++ "\n" ++ show rest
+
+parseSequential :: Parser a -> Parser b -> Parser b
+parseSequential parserA parserB = Parser $ \inp ->
+    case runParser parserA inp of
+      Left e -> Left e
+      Right (_, rest) -> case runParser parserB rest of
+                    Left e -> Left e
+                    Right (val', rest') -> Right (val', rest')
+
+parseEither :: Parser a -> Parser b -> Parser (Either a b)
+parseEither parserA parserB = Parser $ \inp ->
+    case runParser parserA inp of
+      Right (val, rest) -> Right (Left val, rest)
+      Left err -> case runParser parserB inp of
+                    Right (val', rest') -> Right (Right val', rest')
+                    Left err -> Left err -- TODO This should probably have a custom messaged, not just the last one attempted
+
+
 
 stringParser :: String -> Parser ()
 stringParser s = Parser $ parseStr s
