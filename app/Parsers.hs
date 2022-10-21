@@ -1,32 +1,25 @@
 module Parsers where
 
 import Data.Char
+import Control.Applicative
 import Helper
 import Types
 
 
+-- myParser :: Parser (Int, Int)
+-- myParser = pairParser (numberParser <* stringParser ",") <*> numberParser
+myParser = eitherParser (stringParser "hello") (stringParser "asdf")
+
 run :: String -> IO ()
-run s = case runParser (parseSequential (stringParser "asdf") numberParser) (makeInput s) of
+run s = case runParser myParser (makeInput s) of
             Left (Error charNum err) -> putStrLn $ "Error on " ++ show charNum ++ " with " ++ err
             Right (x, rest) -> putStrLn $ "Parsed " ++ show x ++ "\n" ++ show rest
 
-parseSequential :: Parser a -> Parser b -> Parser b
-parseSequential parserA parserB = Parser $ \inp ->
-    case runParser parserA inp of
-      Left e -> Left e
-      Right (_, rest) -> case runParser parserB rest of
-                    Left e -> Left e
-                    Right (val', rest') -> Right (val', rest')
+pairParser :: Parser a -> Parser (b -> (a, b))
+pairParser = (<$>) (,)
 
-parseEither :: Parser a -> Parser b -> Parser (Either a b)
-parseEither parserA parserB = Parser $ \inp ->
-    case runParser parserA inp of
-      Right (val, rest) -> Right (Left val, rest)
-      Left err -> case runParser parserB inp of
-                    Right (val', rest') -> Right (Right val', rest')
-                    Left err -> Left err -- TODO This should probably have a custom messaged, not just the last one attempted
-
-
+eitherParser :: Parser a -> Parser a -> Parser a
+eitherParser = (<|>)
 
 stringParser :: String -> Parser ()
 stringParser s = Parser $ parseStr s
@@ -36,7 +29,7 @@ stringParser s = Parser $ parseStr s
         parseStr (x:xs) (Input []) = Left $ Error ('#', -1) "Unexpected end of input"
         parseStr (x:xs) (Input ((c,charNum):ys))
           | x == c = parseStr xs (Input ys)
-          | otherwise = Left $ Error (c, charNum) "Char mismatch"
+          | otherwise = Left $ Error (c, charNum) ("Char mismatch. Expected " ++ [x])
 
 numberParser :: Parser Int
 numberParser = Parser
