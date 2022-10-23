@@ -17,6 +17,9 @@ type Input = GenericInput InpChar
 data Error = Error InpChar String
     deriving Show
 
+prettyShowInp :: Input -> String
+prettyShowInp (Input xs) = map fst xs
+
 instance Foldable GenericInput where
     foldMap f (Input s) = foldMap f s
     foldl f init (Input s) = foldl f init s
@@ -24,6 +27,14 @@ instance Foldable GenericInput where
 -- TODO Now that GenericInput is foldable, should I create a definition for foldl
 -- and use that everywhere to nicely handle getting the chars without messing with
 -- the positions?
+
+data GroupedInput = SingleInp InpChar
+                  | GroupedInput [GroupedInput]
+                  | NumInput Int
+instance Show GroupedInput where
+    show (SingleInp (c, _)) = [c]
+    show (GroupedInput xs) = yellow "(" ++ (foldr (\x acc -> show x ++ acc) (yellow ")") xs)
+        where yellow x = "\27[33m" ++ x ++ "\27[0m"
 
 newtype Parser a = Parser {
             runParser :: Input -> Either Error (a, Input)
