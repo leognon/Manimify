@@ -7,9 +7,10 @@ import Types
 
 
 -- myParser :: Parser (Int, Int)
-myParser = pairParser (literalParser <* stringParser ",") <*> literalParser
+-- myParser = pairParser (literalParser <* stringParser ",") <*> literalParser
 -- myParser = eitherParser (stringParser "hello") (stringParser "asdf")
 -- myParser = expressionParser -- splitParser '+'
+myParser = fullParser expressionParser
 
 run :: String -> IO ()
 run s = case runParser myParser (makeInput s) of
@@ -22,14 +23,32 @@ pairParser = fmap (,)
 eitherParser :: Parser a -> Parser a -> Parser a
 eitherParser = (<|>)
 
--- expr = term (PLUS expr)+ | term (MINUS expr) | term
--- term = lit (TIMES term)* | lit (DIVIDE term) | ( expr )
+-- Requires the entire string be parsed
+fullParser :: Parser a -> Parser a
+fullParser p = p <* nothingParser
+    where
+        nothingParser :: Parser ()
+        nothingParser = Parser $ \inp ->
+            if null inp then Right ((), Input [])
+                        else Left $ Error (inputHead inp) "Did not fully parse"
+
+-- (1+2)*3
+
+-- expr = term (PLUS expr) | term (MINUS expr) | term
+-- term = lit (TIMES term) | lit (DIVIDE term) | ( expr ) | lit
+-- lit = INTEGER | ( expr )
+
+{-
+expr: 1 * 2 + 3
+    term: 1 * 2 + 3
+        lit: 1
+-}
 
 {-
 expression
-    ::= term ((PLUS|MINUS) term)*
+    ::= term ((PLUS|MINUS) term)
 term
-    ::= factor ((FSLASH|ASTERISK) factor)*
+    ::= factor ((FSLASH|ASTERISK) factor)
 -}
 
 fixParens :: Expression -> Expression
@@ -38,22 +57,23 @@ fixParens (Divide a (Mult b c)) = Mult (Divide a b) c
 fixParens x = x
 
 expressionParser :: Parser Expression
-expressionParser = fixParens <$> expr
+expressionParser = fixParens <$> (add <|> sub <|> termParser)
     where
-      expr =
-        Add <$> termParser <*> (stringParser "+" *> expressionParser) <|>
-        Subtract <$> termParser <*> (stringParser "-" *> expressionParser) <|>
-        termParser
+        add = Add <$> termParser <*> (stringParser "+" *> expressionParser)
+        sub = Subtract <$> termParser <*> (stringParser "-" *> expressionParser)
 
 
 termParser :: Parser Expression
-termParser =
-    Mult <$> literalParser <*> (stringParser "*" *> termParser) <|>
-    Divide <$> literalParser <*> (stringParser "/" *> termParser) <|>
-    stringParser "(" *> expressionParser <* stringParser ")" <|>
-    literalParser
+termParser = fixParens <$> mult <|> div <|> parens <|> litParser
+    where
+        mult = Mult <$> litParser <*> (stringParser "*" *> termParser)
+        div = Divide <$> litParser <*> (stringParser "/" *> termParser)
+        parens = Nested <$> (stringParser "(" *> expressionParser <* stringParser ")")
 
 
+litParser =
+    literalParser <|>
+    stringParser "(" *> expressionParser <* stringParser ")"
 
 stringParser :: String -> Parser Input
 stringParser s = Parser $ parseStr s

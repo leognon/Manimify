@@ -53,6 +53,7 @@ data Expression = Add Expression Expression
                 | Subtract Expression Expression
                 | Mult Expression Expression
                 | Divide Expression Expression
+                | Nested Expression
                 | Literal Int
 
 instance Show Expression where
@@ -60,6 +61,7 @@ instance Show Expression where
     show (Subtract a b) = "(" ++ show a ++ " - " ++ show b ++ ")"
     show (Mult a b) = "(" ++ show a ++ " * " ++ show b ++ ")"
     show (Divide a b) = "(" ++ show a ++ " / " ++ show b ++ ")"
+    show (Nested a) = "(" ++ show a ++ ")"
     show (Literal a) = show a
 
 
