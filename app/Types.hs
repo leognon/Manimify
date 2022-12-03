@@ -21,9 +21,6 @@ instance Foldable GenericInput where
     foldMap f (Input s) = foldMap f s
     foldl f init (Input s) = foldl f init s
     null (Input s) = null s
--- TODO Now that GenericInput is foldable, should I create a definition for foldl
--- and use that everywhere to nicely handle getting the chars without messing with
--- the positions?
 
 newtype Parser a = Parser {
             runParser :: Input -> Either Error (a, Input)
@@ -39,7 +36,7 @@ instance Applicative Parser where
     first <*> second = Parser $ \inp -> do
          (f, rest) <- runParser first inp
          runParser (f <$> second) rest
-    first *> second = (flip const) <$> first <*> second
+    first *> second = flip const <$> first <*> second
     first <* second = const <$> first <*> second
 
 instance Alternative Parser where
@@ -50,3 +47,19 @@ instance Alternative Parser where
           Left _ -> case runParser second inp of
               Right (val, rest) -> Right (val, rest)
               Left _ -> runParser empty inp -- This ensures it obeys identity
+
+
+data Expression = Add Expression Expression
+                | Subtract Expression Expression
+                | Mult Expression Expression
+                | Divide Expression Expression
+                | Literal Int
+
+instance Show Expression where
+    show (Add a b) = "(" ++ show a ++ " + " ++ show b ++ ")"
+    show (Subtract a b) = "(" ++ show a ++ " - " ++ show b ++ ")"
+    show (Mult a b) = "(" ++ show a ++ " * " ++ show b ++ ")"
+    show (Divide a b) = "(" ++ show a ++ " / " ++ show b ++ ")"
+    show (Literal a) = show a
+
+

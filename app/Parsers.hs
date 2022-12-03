@@ -7,8 +7,9 @@ import Types
 
 
 -- myParser :: Parser (Int, Int)
--- myParser = pairParser (numberParser <* stringParser ",") <*> numberParser
-myParser = eitherParser (stringParser "hello") (stringParser "asdf")
+myParser = pairParser (literalParser <* stringParser ",") <*> literalParser
+-- myParser = eitherParser (stringParser "hello") (stringParser "asdf")
+-- myParser = expressionParser -- splitParser '+'
 
 run :: String -> IO ()
 run s = case runParser myParser (makeInput s) of
@@ -16,23 +17,58 @@ run s = case runParser myParser (makeInput s) of
             Right (x, rest) -> putStrLn $ "Parsed " ++ show x ++ "\n" ++ show rest
 
 pairParser :: Parser a -> Parser (b -> (a, b))
-pairParser = (<$>) (,)
+pairParser = fmap (,)
 
 eitherParser :: Parser a -> Parser a -> Parser a
 eitherParser = (<|>)
 
-stringParser :: String -> Parser ()
+-- expr = term (PLUS expr)+ | term (MINUS expr) | term
+-- term = lit (TIMES term)* | lit (DIVIDE term) | ( expr )
+
+{-
+expression
+    ::= term ((PLUS|MINUS) term)*
+term
+    ::= factor ((FSLASH|ASTERISK) factor)*
+-}
+
+fixParens :: Expression -> Expression
+fixParens (Subtract a (Add b c)) = Add (Subtract a b) c
+fixParens (Divide a (Mult b c)) = Mult (Divide a b) c
+fixParens x = x
+
+expressionParser :: Parser Expression
+expressionParser = fixParens <$> expr
+    where
+      expr =
+        Add <$> termParser <*> (stringParser "+" *> expressionParser) <|>
+        Subtract <$> termParser <*> (stringParser "-" *> expressionParser) <|>
+        termParser
+
+
+termParser :: Parser Expression
+termParser =
+    Mult <$> literalParser <*> (stringParser "*" *> termParser) <|>
+    Divide <$> literalParser <*> (stringParser "/" *> termParser) <|>
+    stringParser "(" *> expressionParser <* stringParser ")" <|>
+    literalParser
+
+
+
+stringParser :: String -> Parser Input
 stringParser s = Parser $ parseStr s
     where
-        parseStr :: String -> Input -> Either Error ((), Input)
-        parseStr [] y = Right ((), y)
+        parseStr :: String -> Input -> Either Error (Input, Input)
+        parseStr [] y = Right (Input [], y)
         parseStr (x:xs) (Input []) = Left $ Error ('#', -1) "Unexpected end of input"
-        parseStr (x:xs) (Input ((c,charNum):ys))
-          | x == c = parseStr xs (Input ys)
-          | otherwise = Left $ Error (c, charNum) ("Char mismatch. Expected " ++ [x])
+        parseStr (x:xs) (Input ((c,pos):ys))
+          | x == c = case parseStr xs (Input ys) of
+                       Left e -> Left e
+                       Right (Input str, rest) -> Right (Input $ (c,pos) : str, rest)
+          | otherwise = Left $ Error (c, pos) ("Char mismatch. Expected " ++ [x])
 
-numberParser :: Parser Int
-numberParser = Parser
+literalParser :: Parser Expression
+literalParser = Literal <$> Parser
     (\inp ->
         if not (null inp) && isDigit (fst $ inputHead inp)
             then Right $ parseNum 0 inp
